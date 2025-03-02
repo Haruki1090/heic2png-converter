@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --glass-bg: rgba(30, 30, 35, 0.6);
+  --glass-border: rgba(70, 70, 80, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+}
+
+body {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background-attachment: fixed;
+  color: white;
+}
+
+/* ガラスモーフィズム共通クラス */
+@layer components {
+  .glass {
+    @apply backdrop-blur-md bg-slate-800/60 border border-slate-700/60 shadow-lg;
+  }
+
+  .glass-card {
+    @apply glass rounded-xl p-6;
+  }
+  
+  .glass-button {
+    @apply glass px-4 py-2 rounded-lg
+           hover:bg-slate-700/80 transition-all duration-300 shadow-md;
+  }
+  
+  .glass-input {
+    @apply glass rounded-lg px-4 py-2 
+           focus:outline-none focus:ring-2 focus:ring-slate-500/40 
+           text-white placeholder-slate-400;
+  }
+  
+  .glow {
+    @apply relative;
+  }
+  
+  .glow::before {
+    content: '';
+    @apply absolute -inset-0.5 bg-gradient-to-r from-slate-700 to-slate-600 
+           rounded-xl blur opacity-30 transition duration-300 
+           group-hover:opacity-70 z-[-1];
+  }
+}
+
+/* アニメーション - pulsだけ残し、floatは削除 */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 1.5s ease-in-out infinite;
+}
