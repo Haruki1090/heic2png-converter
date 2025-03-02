@@ -28,27 +28,51 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
   useEffect(() => {
     const loadLibrary = async () => {
       try {
-        if (!window.heic2any) {
-          const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';
-          script.async = true;
-          
-          const loadPromise = new Promise<void>((resolve, reject) => {
-            script.onload = () => {
-              setIsLibraryLoaded(true);
-              resolve();
-            };
-            script.onerror = () => reject(new Error('HEIC変換ライブラリの読み込みに失敗しました。'));
-          });
-          
-          document.body.appendChild(script);
-          await loadPromise;
-        } else {
+        // すでにライブラリが読み込まれているかチェック
+        if (typeof window.heic2any === 'function') {
           setIsLibraryLoaded(true);
+          return;
         }
+        
+        // ライブラリの読み込み
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';
+        script.async = true;
+        
+        const loadPromise = new Promise<void>((resolve, reject) => {
+          script.onload = () => {
+            // ライブラリが読み込まれたら、実際に関数が利用可能になるまで確認
+            let checkAttempts = 0;
+            const maxAttempts = 20;
+            
+            const checkLibraryLoaded = () => {
+              if (typeof window.heic2any === 'function') {
+                setIsLibraryLoaded(true);
+                resolve();
+                return;
+              }
+              
+              checkAttempts++;
+              if (checkAttempts >= maxAttempts) {
+                reject(new Error('heic2anyライブラリが適切に初期化されませんでした。'));
+                return;
+              }
+              
+              // 100ms後に再確認
+              setTimeout(checkLibraryLoaded, 100);
+            };
+            
+            checkLibraryLoaded();
+          };
+          
+          script.onerror = () => reject(new Error('HEIC変換ライブラリの読み込みに失敗しました。'));
+        });
+        
+        document.body.appendChild(script);
+        await loadPromise;
       } catch (err) {
         console.error('ライブラリ読み込みエラー:', err);
-        setError('変換ライブラリの読み込みに失敗しました。');
+        setError('変換ライブラリの読み込みに失敗しました。ブラウザがサポートされていることを確認してください。');
       }
     };
     
@@ -65,7 +89,15 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
   
   // 変換処理
   const convertFiles = useCallback(async (files: FileItem[]) => {
-    if (files.length === 0 || !isLibraryLoaded) return;
+    if (files.length === 0) {
+      return;
+    }
+    
+    // ライブラリが読み込まれていない場合は、エラーメッセージを表示
+    if (!isLibraryLoaded || typeof window.heic2any !== 'function') {
+      setError('変換ライブラリが適切に読み込まれていません。ページを再読み込みしてください。');
+      return;
+    }
     
     setIsConverting(true);
     setError(null);
@@ -139,6 +171,7 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     }
   }, [isLibraryLoaded, updateFileStatus]);
   
+  // 以下のコードは変更なし
   // ファイルダウンロード
   const downloadFile = useCallback((fileId: string) => {
     const file = convertedFiles.find(f => f.id === fileId);
