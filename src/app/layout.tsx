@@ -17,10 +17,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        {/* CSPを修正：worker-src ディレクティブを追加 */}
+        {/* CSPを更新 - script-srcに'self'を追加 */}
         <meta
           httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' blob: data:;"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' blob: data:; connect-src 'self' blob:;"
         />
       </head>
       <body className={inter.className}>{children}</body>
