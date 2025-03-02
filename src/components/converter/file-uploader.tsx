@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, Info } from 'lucide-react';
+import { Upload, FileImage } from 'lucide-react';
 
 interface FileUploaderProps {
   onFileSelect: (files: FileList | null) => boolean | void;
@@ -16,9 +16,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // ファイル選択イベントの処理
     const result = onFileSelect(e.target.files);
-    // 選択がキャンセルされたり、エラーが発生した場合、入力をリセット
     if (result === false && fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -47,45 +45,40 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
     }
   };
   
-  const handleClick = () => {
-    if (!disabled && fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-  
   return (
-    <div className={`${className}`}>
-      <div className="flex items-center mb-3">
-        <Upload className="text-slate-300 mr-2" size={20} />
-        <label className="text-white font-bold">
-          HEICファイルを選択:
-        </label>
-      </div>
-      
+    <div className={className}>
       <div
-        className={`glass border-2 border-dashed rounded-lg p-6 text-center 
-          ${isDragging ? 'border-slate-400 bg-slate-700/50' : 'border-slate-600/70'}
-          ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-700/50'}`}
+        className={`relative overflow-hidden rounded-xl border-2 border-dashed 
+          ${isDragging ? 'border-violet-500/70 bg-slate-800/80' : 'border-slate-700/70 bg-slate-800/40'} 
+          ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:bg-slate-800/70 hover:border-slate-600'} 
+          transition-all duration-200`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={handleClick}
+        onClick={() => !disabled && fileInputRef.current?.click()}
       >
-        <div className="flex flex-col items-center justify-center">
-          <Upload 
-            size={32} 
-            className={`mb-2 ${isDragging ? 'text-white' : 'text-slate-300'}`} 
-          />
-          <p className="mb-2 text-sm text-slate-200">
-            ファイルをドラッグ＆ドロップするか<br />
-            <span className="font-medium text-white">クリックしてファイルを選択</span>
-          </p>
-          <p className="text-xs text-slate-400">
-            HEICファイル（複数可）
-          </p>
+        <div className="absolute bottom-0 left-0 w-full h-1/2 bg-gradient-to-t from-slate-900/50 to-transparent"></div>
+        
+        <div className="py-8 px-4 flex flex-col items-center justify-center relative z-10">
+          <div className="p-4 rounded-full bg-slate-800/90 border border-slate-700 mb-4">
+            <FileImage size={28} className={`${isDragging ? 'text-violet-400' : 'text-slate-400'}`} />
+          </div>
+          
+          <div className="text-center">
+            <p className="text-base font-medium text-white mb-1">
+              ファイルをドラッグ＆ドロップ
+            </p>
+            <p className="text-sm text-slate-400 mb-4">
+              または<span className="text-violet-400 font-medium ml-1">ファイルを選択</span>
+            </p>
+            <div className="inline-flex items-center text-xs text-slate-500 bg-slate-800/80 px-2 py-1 rounded-md">
+              <Upload size={12} className="mr-1" />
+              HEICファイル
+            </div>
+          </div>
         </div>
       </div>
-      
+
       <input 
         ref={fileInputRef}
         type="file" 
@@ -93,13 +86,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({
         multiple 
         onChange={handleFileChange}
         disabled={disabled}
-        className="hidden"
+        className="hidden" 
       />
-      
-      <div className="flex items-center mt-2">
-        <Info size={14} className="text-slate-400 mr-1" />
-        <span className="text-xs text-slate-400">複数ファイルを同時に選択可能</span>
-      </div>
     </div>
   );
 };
