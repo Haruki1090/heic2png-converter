@@ -1,6 +1,5 @@
-// src/hooks/useHeicConverter.ts
-
-import { useState, useCallback, useEffect } from 'react';
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { FileItem, ConvertedFile } from '@/types/file';
 
@@ -24,52 +23,29 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
+  // Workerの参照を保持するための配列
+  const activeWorkers = useRef<Worker[]>([]);
+  // タイムアウトの参照を保持する
+  const timeoutRefs = useRef<{[key: string]: NodeJS.Timeout}>({});
+  
   // ライブラリ読み込み
   useEffect(() => {
     const loadLibrary = async () => {
       try {
-        // すでにライブラリが読み込まれているかチェック
-        if (typeof window.heic2any === 'function') {
-          setIsLibraryLoaded(true);
-          return;
-        }
-        
-        // ライブラリの読み込み
         const script = document.createElement('script');
         script.src = 'https://cdnjs.cloudflare.com/ajax/libs/heic2any/0.0.4/heic2any.min.js';
         script.async = true;
         
         const loadPromise = new Promise<void>((resolve, reject) => {
-          script.onload = () => {
-            // ライブラリが読み込まれたら、実際に関数が利用可能になるまで確認
-            let checkAttempts = 0;
-            const maxAttempts = 20;
-            
-            const checkLibraryLoaded = () => {
-              if (typeof window.heic2any === 'function') {
-                setIsLibraryLoaded(true);
-                resolve();
-                return;
-              }
-              
-              checkAttempts++;
-              if (checkAttempts >= maxAttempts) {
-                reject(new Error('heic2anyライブラリが適切に初期化されませんでした。'));
-                return;
-              }
-              
-              // 100ms後に再確認
-              setTimeout(checkLibraryLoaded, 100);
-            };
-            
-            checkLibraryLoaded();
-          };
-          
+          script.onload = () => resolve();
           script.onerror = () => reject(new Error('HEIC変換ライブラリの読み込みに失敗しました。'));
         });
         
         document.body.appendChild(script);
         await loadPromise;
+        
+        // ライブラリが読み込まれたことを確認
+        setIsLibraryLoaded(true);
       } catch (err) {
         console.error('ライブラリ読み込みエラー:', err);
         setError('変換ライブラリの読み込みに失敗しました。ブラウザがサポートされていることを確認してください。');
@@ -80,6 +56,14 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     
     // クリーンアップ関数
     return () => {
+      // すべてのWorkerを終了
+      activeWorkers.current.forEach(worker => worker.terminate());
+      activeWorkers.current = [];
+      
+      // すべてのタイムアウトをクリア
+      Object.values(timeoutRefs.current).forEach(timeoutRef => clearTimeout(timeoutRef));
+      timeoutRefs.current = {};
+      
       // 変換済みファイルのURLをrevoke
       convertedFiles.forEach(file => {
         URL.revokeObjectURL(file.url);
@@ -87,92 +71,169 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     };
   }, [convertedFiles]);
   
-  // 変換処理
-  const convertFiles = useCallback(async (files: FileItem[]) => {
-    if (files.length === 0) {
-      return;
-    }
+  // 処理のタイムアウト設定
+  const setupConversionTimeout = useCallback((fileId: string) => {
+    // 2分のタイムアウトを設定
+    const timeoutRef = setTimeout(() => {
+      updateFileStatus(fileId, 'error', '変換処理がタイムアウトしました。ファイルが大きすぎる可能性があります。');
+      setError(`ファイルの変換処理がタイムアウトしました。ブラウザの再起動や、ファイルの分割をお試しください。`);
+    }, 120000); // 2分 = 120000ms
     
-    // ライブラリが読み込まれていない場合は、エラーメッセージを表示
-    if (!isLibraryLoaded || typeof window.heic2any !== 'function') {
-      setError('変換ライブラリが適切に読み込まれていません。ページを再読み込みしてください。');
-      return;
+    timeoutRefs.current[fileId] = timeoutRef;
+  }, [updateFileStatus]);
+  
+  // タイムアウトのクリア
+  const clearConversionTimeout = useCallback((fileId: string) => {
+    if (timeoutRefs.current[fileId]) {
+      clearTimeout(timeoutRefs.current[fileId]);
+      delete timeoutRefs.current[fileId];
     }
+  }, []);
+  
+  // 変換処理（Web Workerを使用）
+  const convertFiles = useCallback(async (files: FileItem[]) => {
+    if (files.length === 0) return;
     
     setIsConverting(true);
     setError(null);
     setProgress(0);
     
-    try {
-      const totalFiles = files.length;
-      const newConvertedFiles: ConvertedFile[] = [];
-      
-      // 並列処理のための配列準備
-      const conversionPromises = files.map(async (fileItem, index) => {
-        try {
-          updateFileStatus(fileItem.id, 'converting');
+    const totalFiles = files.length;
+    let completedCount = 0;
+    const newConvertedFiles: ConvertedFile[] = [];
+    
+    // 各ファイルに対してWorkerを作成
+    files.forEach(fileItem => {
+      try {
+        updateFileStatus(fileItem.id, 'converting');
+        
+        // WebWorkerの生成
+        const worker = new Worker(new URL('../workers/heicConverter.worker.js', import.meta.url));
+        activeWorkers.current.push(worker);
+        
+        // タイムアウト設定
+        setupConversionTimeout(fileItem.id);
+        
+        // Workerからのメッセージを処理
+        worker.onmessage = (e) => {
+          const { type, id, result, error: workerError, progress: fileProgress } = e.data;
           
-          // 最高品質で変換を実行
-          const blobResult = await window.heic2any({
-            blob: fileItem.file,
-            toType: 'image/png',
-            quality: 1.0 // 最高品質設定
-          });
+          if (id !== fileItem.id) return;
           
-          // 単一のBlobと配列のどちらの場合も処理
-          const singleBlob = Array.isArray(blobResult) ? blobResult[0] : blobResult;
+          switch (type) {
+            case 'progress':
+              // 進捗状況の更新処理
+              break;
+              
+            case 'complete':
+              // 変換完了の処理
+              clearConversionTimeout(id);
+              
+              // ファイル名の作成（.heicを.pngに置き換え）
+              const fileName = fileItem.name.replace(/\.heic$/i, '.png');
+              
+              const convertedFile: ConvertedFile = {
+                id: uuidv4(),
+                originalId: id,
+                name: fileName,
+                size: result.size,
+                blob: result,
+                url: URL.createObjectURL(result),
+                originalName: fileItem.name
+              };
+              
+              newConvertedFiles.push(convertedFile);
+              updateFileStatus(id, 'completed');
+              
+              // 進捗状況の更新
+              completedCount++;
+              const newProgress = Math.round((completedCount / totalFiles) * 100);
+              setProgress(newProgress);
+              
+              // すべてのファイルの変換が完了した場合
+              if (completedCount === totalFiles) {
+                setConvertedFiles(prev => [...prev, ...newConvertedFiles]);
+                setIsConverting(false);
+                
+                // すべてのWorkerを終了
+                activeWorkers.current.forEach(w => w.terminate());
+                activeWorkers.current = [];
+              }
+              
+              // Workerを終了
+              worker.terminate();
+              activeWorkers.current = activeWorkers.current.filter(w => w !== worker);
+              break;
+              
+            case 'error':
+              // エラー処理
+              clearConversionTimeout(id);
+              console.error(`ファイル ${fileItem.name} の変換エラー:`, workerError);
+              updateFileStatus(id, 'error', workerError);
+              
+              // 進捗状況の更新
+              completedCount++;
+              const errorProgress = Math.round((completedCount / totalFiles) * 100);
+              setProgress(errorProgress);
+              
+              if (completedCount === totalFiles) {
+                setIsConverting(false);
+                if (newConvertedFiles.length > 0) {
+                  setConvertedFiles(prev => [...prev, ...newConvertedFiles]);
+                }
+              }
+              
+              // Workerを終了
+              worker.terminate();
+              activeWorkers.current = activeWorkers.current.filter(w => w !== worker);
+              break;
+          }
+        };
+        
+        // エラー処理
+        worker.onerror = (err) => {
+          clearConversionTimeout(fileItem.id);
+          console.error(`Worker error for ${fileItem.name}:`, err);
+          updateFileStatus(fileItem.id, 'error', 'Worker処理エラー: ' + (err.message || '不明なエラー'));
           
-          // ファイル名の作成（.heicを.pngに置き換え）
-          const fileName = fileItem.name.replace(/\.heic$/i, '.png');
+          completedCount++;
+          setProgress(Math.round((completedCount / totalFiles) * 100));
           
-          const convertedFile: ConvertedFile = {
-            id: uuidv4(),
-            originalId: fileItem.id,
-            name: fileName,
-            size: singleBlob.size,
-            blob: singleBlob,
-            url: URL.createObjectURL(singleBlob),
-            originalName: fileItem.name
-          };
+          if (completedCount === totalFiles) {
+            setIsConverting(false);
+            if (newConvertedFiles.length > 0) {
+              setConvertedFiles(prev => [...prev, ...newConvertedFiles]);
+            }
+          }
           
-          // 進捗状況の更新
-          setProgress(() => {
-            const newProgress = Math.round(((index + 1) / totalFiles) * 100);
-            return newProgress;
-          });
-          
-          updateFileStatus(fileItem.id, 'completed');
-          return convertedFile;
-        } catch (fileError) {
-          console.error(`ファイル ${fileItem.name} の変換に失敗しました:`, fileError);
-          const errorMessage = fileError instanceof Error ? fileError.message : '不明なエラー';
-          updateFileStatus(fileItem.id, 'error', errorMessage);
-          return null;
-        }
-      });
-      
-      // すべての変換を同時処理
-      const results = await Promise.all(conversionPromises);
-      
-      // エラーがなかったファイルだけを追加
-      for (const result of results) {
-        if (result) {
-          newConvertedFiles.push(result);
+          worker.terminate();
+          activeWorkers.current = activeWorkers.current.filter(w => w !== worker);
+        };
+        
+        // 処理開始
+        worker.postMessage({
+          file: fileItem.file,
+          id: fileItem.id
+        });
+      } catch (err) {
+        console.error(`ファイル ${fileItem.name} の変換準備エラー:`, err);
+        const errorMessage = err instanceof Error ? err.message : '不明なエラー';
+        updateFileStatus(fileItem.id, 'error', errorMessage);
+        
+        completedCount++;
+        setProgress(Math.round((completedCount / totalFiles) * 100));
+        
+        if (completedCount === totalFiles) {
+          setIsConverting(false);
+          if (newConvertedFiles.length > 0) {
+            setConvertedFiles(prev => [...prev, ...newConvertedFiles]);
+          }
         }
       }
-      
-      setConvertedFiles(prev => [...prev, ...newConvertedFiles]);
-      setProgress(100);
-    } catch (err) {
-      console.error('変換エラー:', err);
-      setError('変換処理中にエラーが発生しました。ブラウザが最新版であることを確認してください。');
-    } finally {
-      setIsConverting(false);
-    }
-  }, [isLibraryLoaded, updateFileStatus]);
+    });
+  }, [updateFileStatus, setupConversionTimeout, clearConversionTimeout]);
   
   // 以下のコードは変更なし
-  // ファイルダウンロード
   const downloadFile = useCallback((fileId: string) => {
     const file = convertedFiles.find(f => f.id === fileId);
     if (!file) return;
@@ -185,7 +246,6 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     document.body.removeChild(a);
   }, [convertedFiles]);
   
-  // すべてのファイルをダウンロード
   const downloadAllFiles = useCallback(() => {
     convertedFiles.forEach(file => {
       const a = document.createElement('a');
@@ -197,7 +257,6 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     });
   }, [convertedFiles]);
   
-  // コンバーターの状態をリセット
   const resetConverter = useCallback(() => {
     // 以前のURLをクリーンアップ
     convertedFiles.forEach(file => {
