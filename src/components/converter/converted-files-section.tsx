@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React from 'react';
-import { Download } from 'lucide-react';
+import { Download, Image as ImageIcon, CheckCircle2 } from 'lucide-react';
 import { ConvertedFile } from '@/types/file';
 import { ConvertedFileCard } from './converted-file-card';
 
@@ -20,20 +21,26 @@ export const ConvertedFilesSection: React.FC<ConvertedFilesSectionProps> = ({
   
   return (
     <div className={`${className}`}>
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-white">変換完了 ({files.length}件)</h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center">
+          <div className="bg-emerald-900/40 p-2 rounded-lg mr-3">
+            <CheckCircle2 size={20} className="text-emerald-400" />
+          </div>
+          <h2 className="text-xl font-semibold text-white">変換完了</h2>
+        </div>
+        
         {files.length > 1 && (
           <button
             onClick={onDownloadAll}
-            className="glass-button flex items-center text-sm"
+            className="neo-button-secondary text-sm"
           >
-            <Download size={16} className="mr-1" />
+            <Download size={14} className="mr-1.5 inline-block" />
             すべてダウンロード
           </button>
         )}
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="preview-grid">
         {files.map((file) => (
           <ConvertedFileCard
             key={file.id}
