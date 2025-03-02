@@ -115,8 +115,16 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
     }, 180000); // 3分
     
     // 変換開始
+    updateFileStatus(fileItem.id, 'converting');
+    workerRef.current.postMessage({
+      type: 'convert',
+      file: fileItem.file,
+      id: fileItem.id
+    });
+  }, [workerInitialized, updateFileStatus]);
+
   // Workerからのファイル変換メッセージを処理
-  const handleFileConversionMessage = useCallback((data: any) => {
+  const handleFileConversionMessage = useCallback((data: WorkerMessage) => {
     const { type, id, result, error: conversionError } = data;
     
     // タイムアウトをクリア
