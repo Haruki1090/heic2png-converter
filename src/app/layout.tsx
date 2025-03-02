@@ -17,10 +17,10 @@ export default function RootLayout({
   return (
     <html lang="ja">
       <head>
-        {/* CSPを設定してcdnjs.cloudflare.comからのスクリプト読み込みを許可 */}
+        {/* CSPを修正：worker-src ディレクティブを追加 */}
         <meta
           httpEquiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:;"
+          content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; img-src 'self' blob: data:;"
         />
       </head>
       <body className={inter.className}>{children}</body>
