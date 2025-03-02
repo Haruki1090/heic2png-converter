@@ -2,6 +2,9 @@
 let isInitialized = false;
 let initError = null;
 
+// windowオブジェクトのエミュレート
+self.window = self;
+
 // WebWorkerでHEICの変換処理を実行する
 self.onmessage = async function(e) {
   const { type, file, id } = e.data;
