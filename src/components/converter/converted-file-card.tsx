@@ -1,7 +1,7 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import React from 'react';
-import { Download, FileIcon, Image } from 'lucide-react';
+import { Download, Image as ImageIcon } from 'lucide-react';
 import { ConvertedFile } from '@/types/file';
+import Image from 'next/image';
 
 interface ConvertedFileCardProps {
   file: ConvertedFile;
@@ -20,38 +20,39 @@ export const ConvertedFileCard: React.FC<ConvertedFileCardProps> = ({
   };
   
   return (
-    <div className="glass rounded-lg overflow-hidden group">
-      {/* プレビュー */}
-      <div className="h-32 overflow-hidden relative bg-black/30">
-        <img 
+    <div className="preview-card">
+      <div className="preview-card-image">
+        <Image 
           src={file.url} 
           alt={file.name}
           className="w-full h-full object-contain"
+          fill
+          sizes="(max-width: 768px) 100vw, 33vw"
+          priority={false}
         />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-center p-3">
+          <button
+            onClick={onDownload}
+            className="neo-button text-xs py-1.5 w-full"
+          >
+            <Download size={12} className="inline-block mr-1" />
+            ダウンロード
+          </button>
+        </div>
       </div>
       
       {/* 情報 */}
-      <div className="p-3">
-        <div className="flex items-center mb-1">
-          <Image size={16} className="text-white/60 mr-2" />
-          <h3 className="text-sm font-medium text-white truncate" title={file.name}>
-            {file.name}
-          </h3>
-        </div>
-        
+      <div className="preview-card-content">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-white/60">
+          <div className="flex items-center overflow-hidden mr-2">
+            <ImageIcon size={14} className="text-slate-400 mr-2 flex-shrink-0" />
+            <h3 className="text-sm font-medium text-white truncate" title={file.name}>
+              {file.name.replace('.png', '')}
+            </h3>
+          </div>
+          <span className="text-xs text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
             {formatFileSize(file.size)}
           </span>
-          
-          <button
-            onClick={onDownload}
-            className="flex items-center text-xs text-white/90 hover:text-white bg-white/10 hover:bg-white/20 
-                      rounded px-2 py-1 transition-colors duration-200"
-          >
-            <Download size={12} className="mr-1" />
-            ダウンロード
-          </button>
         </div>
       </div>
     </div>
