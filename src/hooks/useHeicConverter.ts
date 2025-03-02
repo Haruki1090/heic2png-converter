@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
@@ -127,10 +128,16 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
   const handleFileConversionMessage = useCallback((data: WorkerMessage) => {
     const { type, id, result, error: conversionError } = data;
     
-    // タイムアウトをクリア
-    if (timeoutRefs.current[id]) {
+    // idが存在するか確認してからタイムアウトをクリア
+    if (id && timeoutRefs.current[id]) {
       clearTimeout(timeoutRefs.current[id]);
       delete timeoutRefs.current[id];
+    }
+    
+    // idがない場合はエラーとして処理を中断
+    if (!id) {
+      console.error('Worker message has no ID:', data);
+      return;
     }
     
     switch (type) {
@@ -146,9 +153,9 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
             id: uuidv4(),
             originalId: id,
             name: fileName,
-            size: result.size,
-            blob: result,
-            url: URL.createObjectURL(result),
+            size: result?.size || 0, // resultも存在チェック
+            blob: result as Blob, // 型アサーションで安全に
+            url: result ? URL.createObjectURL(result) : '',
             originalName: fileItem.name
           };
           
@@ -157,7 +164,7 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
           
           // 進捗更新
           setProgress(prev => {
-            const increment = 100 / conversionQueue.current.length;
+            const increment = 100 / (conversionQueue.current.length || 1);
             return Math.min(100, prev + increment);
           });
         }
@@ -165,7 +172,7 @@ export const useHeicConverter = (updateFileStatus: (id: string, status: FileItem
         
       case 'error':
         console.error(`変換エラー (${id}):`, conversionError);
-        updateFileStatus(id, 'error', conversionError);
+        updateFileStatus(id, 'error', conversionError || '不明なエラー');
         break;
     }
     
