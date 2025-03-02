@@ -3,61 +3,94 @@
 @tailwind utilities;
 
 :root {
-  --glass-bg: rgba(30, 30, 35, 0.6);
-  --glass-border: rgba(70, 70, 80, 0.3);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  --card-border: rgba(70, 70, 80, 0.2);
+  --card-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --accent: 124, 58, 237;
+  --accent-light: 139, 92, 246;
 }
 
 body {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  background-attachment: fixed;
+  background: radial-gradient(ellipse at top, #13151f, #090a0f),
+              radial-gradient(ellipse at bottom, #0f1117, #090a0f);
   color: white;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* ガラスモーフィズム共通クラス */
 @layer components {
-  .glass {
-    @apply backdrop-blur-md bg-slate-800/60 border border-slate-700/60 shadow-lg;
-  }
-
-  .glass-card {
-    @apply glass rounded-xl p-6;
+  .neo-glass {
+    @apply backdrop-blur-md bg-slate-900/60 border border-slate-800/80 shadow-lg;
   }
   
-  .glass-button {
-    @apply glass px-4 py-2 rounded-lg
-           hover:bg-slate-700/80 transition-all duration-300 shadow-md;
+  .neo-card {
+    @apply neo-glass rounded-xl p-6 relative;
   }
   
-  .glass-input {
-    @apply glass rounded-lg px-4 py-2 
-           focus:outline-none focus:ring-2 focus:ring-slate-500/40 
-           text-white placeholder-slate-400;
-  }
-  
-  .glow {
-    @apply relative;
-  }
-  
-  .glow::before {
+  .neo-card::after {
     content: '';
-    @apply absolute -inset-0.5 bg-gradient-to-r from-slate-700 to-slate-600 
-           rounded-xl blur opacity-30 transition duration-300 
-           group-hover:opacity-70 z-[-1];
+    @apply absolute inset-0 rounded-xl bg-gradient-to-br from-slate-800/40 to-transparent pointer-events-none;
+  }
+  
+  .neo-button {
+    @apply relative bg-gradient-to-r from-violet-600 to-indigo-600 
+           rounded-lg px-4 py-2 text-white font-medium shadow-lg
+           hover:from-violet-500 hover:to-indigo-500 transition-all duration-300
+           focus:ring-2 focus:ring-offset-2 focus:ring-violet-600 focus:outline-none
+           disabled:opacity-70 disabled:pointer-events-none;
+  }
+  
+  .neo-button-secondary {
+    @apply relative bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/50
+           rounded-lg px-4 py-2 text-slate-300 shadow-md transition-colors duration-200
+           focus:ring-2 focus:ring-offset-2 focus:ring-slate-600 focus:outline-none
+           disabled:opacity-70 disabled:pointer-events-none;
+  }
+  
+  .neo-input {
+    @apply bg-slate-800/70 border border-slate-700/50 rounded-lg px-4 py-3
+           focus:outline-none focus:ring-1 focus:ring-violet-500/70
+           text-white placeholder:text-slate-500 w-full;
+  }
+  
+  /* イメージプレビューエリア */
+  .preview-grid {
+    @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4;
+  }
+  
+  .preview-card {
+    @apply neo-glass overflow-hidden rounded-lg group;
+  }
+  
+  .preview-card-image {
+    @apply h-40 w-full relative overflow-hidden bg-slate-800/70;
+  }
+  
+  .preview-card-image img {
+    @apply w-full h-full object-contain transition-transform duration-300
+           group-hover:scale-105;
+  }
+  
+  .preview-card-content {
+    @apply p-3 border-t border-slate-700/50;
+  }
+  
+  /* スクロールバー */
+  .custom-scrollbar {
+    @apply scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-slate-900/30;
+  }
+  
+  /* アクセントカラーのヒント */
+  .accent-hint {
+    @apply absolute w-32 h-32 rounded-full bg-violet-600/20 blur-[80px] -z-10;
   }
 }
 
-/* アニメーション - pulsだけ残し、floatは削除 */
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+/* プログレスバーのアニメーション */
+@keyframes progress {
+  from { width: 0; }
+  to { width: 100%; }
 }
 
-.animate-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
+.progress-animation {
+  animation: progress 2s ease-in-out;
 }
